@@ -376,7 +376,7 @@ function render(){
   $("hhead").innerHTML=`<tr><th>日期</th>${players.map(p=>`<th style="${colorOf(p)};color:var(--c)">${esc(p)}</th>`).join("")}</tr>`;
   const hr=[];
   for(let i=0;i<7;i++){
-    const k=shift(TODAY,-i), d=new Date(k+"T12:00:00");
+    const k=shift(TODAY,-i), d=new Date(k+"T12:00:00"); if(k<START) break;
     const cell=p=>{const r=recs[rk(k,p)]; if(!r) return `<span class="chip no">—</span>`;
       return `<span class="chip ${r.done?"ok":""}"><i></i>${esc((BY[r.ex]||{n:r.ex}).n)}${r.done?"":"（沒做）"}</span>`;};
     hr.push(`<tr><td class="d">${i===0?"今天":`${d.getMonth()+1}/${d.getDate()} (${W[d.getDay()]})`}${cd(k)?`<small>${cd(k)}</small>`:""}</td>${players.map(p=>`<td>${cell(p)}</td>`).join("")}</tr>`);
