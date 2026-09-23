@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>今日運動籤</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<script>
+/* ============================================================
+   ★ 唯一要改的地方：把 Google Apps Script 部署後的網址貼在引號裡
+   （網址結尾是 /exec）
+   ============================================================ */
+const API_URL = "https://script.google.com/macros/s/AKfycbxRUzoYMS8ZGs2apWof8D0kTXeEuYgy8asodHGlBp98YoeB5Sre2jIvzGHta4nslH4E/exec";
+</script>
+<style>
+:root{
+  --ground:#F1F4EF; --paper:#FFFFFF; --ink:#1E2A23; --muted:#5E6B63; --line:#DCE3DA;
+  --p0:#2B59C3; --p0s:#E3EAFA; --p1:#B87C08; --p1s:#FBF0D6;
+  --p2:#B8457A; --p2s:#F8E3ED; --p3:#1F8A84; --p3s:#DDF2F0;
+  --p4:#6B4FC0; --p4s:#ECE6FA; --p5:#C2562B; --p5s:#FBE6DC;
+  --p6:#4E7D1E; --p6s:#E6F1DA; --p7:#5E6B73; --p7s:#E7EBEE;
+  --done:#2E8B57; --done-soft:#DDF1E4; --warn-soft:#FFF4D6;
+  --shadow:0 1px 2px rgba(30,42,35,.06),0 8px 24px rgba(30,42,35,.07);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    color-scheme:dark;
+    --ground:#151A17; --paper:#1F2621; --ink:#E8EEE9; --muted:#9AA79F; --line:#2F3832;
+    --p0:#8FAEF5; --p0s:#23304D; --p1:#F1C25B; --p1s:#3D321A;
+    --p2:#F08DB9; --p2s:#452335; --p3:#6FD3CB; --p3s:#193A38;
+    --p4:#B7A3F5; --p4s:#2E2750; --p5:#F29A73; --p5s:#452819;
+    --p6:#A6D86F; --p6s:#27361A; --p7:#AEB9C0; --p7s:#2B3237;
+    --done:#6CD39A; --done-soft:#1E3A2A; --warn-soft:#3A3220;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--ground);color:var(--ink);font-family:"Noto Sans TC",system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;font-size:15px;line-height:1.6;
+  padding-inline:16px;padding-block:calc(24px + env(safe-area-inset-top,0px)) calc(48px + env(safe-area-inset-bottom,0px))}
+.wrap{max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+.hand{font-family:"LXGW WenKai TC","Kaiti TC","KaiTi",serif}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 16px}
+h1{font-size:clamp(30px,6vw,42px);margin:0;line-height:1.1;font-weight:700;letter-spacing:.02em}
+.sub{margin:6px 0 0;color:var(--muted)}
+.date{color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums;display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px}
+.date b{color:var(--ink);font-weight:500}
+.cd{padding:3px 12px;border-radius:99px;background:var(--ink);color:var(--paper);font-weight:700;font-size:14px;white-space:nowrap}
+
+.banner{background:var(--warn-soft);border-radius:12px;padding:10px 14px;font-size:14px}
+.whoami{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:var(--paper);border-radius:14px;padding:12px 14px;box-shadow:var(--shadow)}
+.whoami .lbl{font-weight:700;margin-right:4px}
+.pick{border:1.5px solid var(--line);background:transparent;color:var(--ink);font-weight:500;font-size:15px;padding:6px 14px;border-radius:99px}
+.pick.on{background:var(--c);border-color:var(--c);color:var(--paper);font-weight:700}
+.sync{margin-left:auto;font-size:12px;color:var(--muted)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;align-items:start}
+.card{background:var(--paper);border-radius:18px;box-shadow:var(--shadow);padding:18px;display:flex;flex-direction:column;gap:14px}
+.card.me{outline:2.5px solid var(--c);outline-offset:-2.5px}
+.who{display:flex;align-items:center;gap:10px}
+.dot{width:36px;height:36px;border-radius:50%;background:var(--soft);color:var(--c);display:grid;place-items:center;font-weight:700;font-size:17px;flex:none}
+.who h2{margin:0;font-size:19px}
+.who .you{font-size:12px;color:var(--c);font-weight:700}
+.state{margin-left:auto;font-size:12px;padding:2px 10px;border-radius:99px;background:var(--line);color:var(--muted);white-space:nowrap}
+.state.drawn{background:var(--soft);color:var(--c)}
+.state.ok{background:var(--done-soft);color:var(--done)}
+
+.slip{min-height:120px;border:1.5px dashed var(--line);border-radius:12px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:14px;gap:2px}
+.slip.has{border-style:solid;border-color:var(--c);background:var(--soft);align-items:stretch}
+.slip .name{font-size:clamp(26px,5vw,32px);font-weight:700;line-height:1.2;text-align:center}
+.slip .amt{font-size:17px;color:var(--c);font-weight:700;text-align:center;font-variant-numeric:tabular-nums}
+.slip .empty{color:var(--muted);font-size:19px}
+.slip.spin .name{opacity:.7}
+@keyframes pop{0%{transform:scale(.92) rotate(-2deg)}60%{transform:scale(1.04) rotate(1deg)}100%{transform:none}}
+.slip.pop{animation:pop .45s ease-out}
+.slip details{margin-top:8px}
+.slip summary{cursor:pointer;font-size:14px;color:var(--c);font-weight:500;text-align:center}
+
+.steps{margin:10px 0 0;padding-left:1.4em;text-align:left;display:flex;flex-direction:column;gap:6px;font-size:15px;line-height:1.55}
+.steps li::marker{color:var(--c);font-weight:700}
+.warn{margin:10px 0 0;text-align:left;font-size:13.5px;color:var(--muted);background:color-mix(in srgb,var(--paper) 70%,transparent);border-radius:8px;padding:8px 10px}
+.warn b{color:var(--ink);margin-right:6px}
+.vid{display:inline-block;margin-top:10px;font-size:14px;font-weight:500;color:var(--c);text-decoration:none;border-bottom:1.5px solid currentColor;align-self:flex-start}
+
+button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:12px 16px;font-weight:700;font-size:16px;transition:transform .1s,filter .15s}
+button:active{transform:scale(.97)}
+button:focus-visible,.pick:focus-visible{outline:3px solid var(--c,var(--p0));outline-offset:2px}
+.primary{width:100%;background:var(--c);color:var(--paper)}
+.okbtn{width:100%;background:var(--done-soft);color:var(--done)}
+.okbtn.on{background:var(--done);color:var(--paper)}
+button[disabled]{opacity:.55;cursor:default}
+.hint{font-size:13px;color:var(--muted);text-align:center;margin:0}
+
+section h3{font-size:17px;margin:0 0 12px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+section h3 small{font-weight:400;color:var(--muted);font-size:13px}
+.board{background:var(--paper);border-radius:18px;box-shadow:var(--shadow);padding:8px 16px}
+.row{display:grid;grid-template-columns:28px minmax(60px,110px) 1fr auto;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.rank{font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;text-align:center}
+.row .nm{font-weight:700;color:var(--c);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar{height:10px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--c);border-radius:99px}
+.num{font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+.num b{font-size:17px}
+.num small{color:var(--muted);display:block;font-size:12px;line-height:1.2}
+
+.hist{background:var(--paper);border-radius:18px;box-shadow:var(--shadow);overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+th{font-size:12px;font-weight:700}
+td.d{color:var(--muted);font-variant-numeric:tabular-nums}
+td.d small{display:block;font-size:11px}
+.chip{display:inline-flex;align-items:center;gap:6px}
+.chip i{width:8px;height:8px;border-radius:50%;background:var(--line)}
+.chip.ok i{background:var(--done)}
+.chip.no{color:var(--muted)}
+
+.menu{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;align-items:start;--c:var(--p0)}
+.menu details{padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--paper)}
+.menu summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px}
+.menu summary::-webkit-details-marker{display:none}
+.menu summary::after{content:"＋";color:var(--muted);font-size:13px}
+.menu details[open] summary::after{content:"－"}
+.menu details[open]{grid-column:1/-1}
+.menu b{font-size:15px}
+.menu span{font-size:13px;color:var(--muted);margin-left:auto}
+.note{font-size:13px;color:var(--muted);margin:0}
+@media (prefers-reduced-motion:reduce){.slip.pop{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1 class="hand">今日運動籤</h1>
+      <p class="sub">9/23 到 12/31，大家一起動 100 天。一人一支，抽到什麼就做什麼。</p>
+    </div>
+    <div class="date" id="today"></div>
+  </header>
+
+  <div class="banner" id="demo" hidden>示範模式：還沒接上 Google 試算表，紀錄只存在這台裝置。照著設定說明接好之後，大家就能互相看到。</div>
+
+  <div class="whoami" id="whoami"></div>
+
+  <section>
+    <h3>今天大家抽到什麼</h3>
+    <div class="grid" id="cards"></div>
+  </section>
+
+  <section>
+    <h3>100 天打卡榜 <small>完成天數・連續天數</small></h3>
+    <div class="board" id="board"></div>
+  </section>
+
+  <section>
+    <h3>最近 7 天</h3>
+    <div class="hist"><table><thead id="hhead"></thead><tbody id="hist"></tbody></table></div>
+  </section>
+
+  <section>
+    <h3>籤筒裡有什麼 <small>共 <span id="count"></span> 支・點開看怎麼做</small></h3>
+    <div class="menu" id="menu"></div>
+  </section>
+  <p class="note">每人每天只能抽一次，抽到就固定。同一個人不會連續兩天抽到同一項。只能幫自己抽籤和打卡。</p>
+</div>
+
+<script>
+const EX = [
+  {id:"squat", n:"深蹲", a:"3 組 × 15 下", q:"深蹲 教學",
+   s:["雙腳打開與肩同寬，腳尖稍微朝外","雙手往前平舉，保持平衡","像要坐椅子一樣，屁股往後、往下坐，坐到大腿差不多和地面平行","腳跟踩穩，用力站起來，這樣算 1 下"],
+   w:"膝蓋不要往內夾；背挺直，不要駝背"},
+  {id:"plank", n:"棒式", a:"3 組 × 30 秒", q:"棒式 平板支撐 教學",
+   s:["趴在地上，手肘放在肩膀正下方，前臂貼地","腳尖踩地，把身體撐起來","從頭到腳跟保持一直線，肚子用力縮緊","維持 30 秒，休息 30 秒，再做下一組"],
+   w:"屁股不要翹高、也不要塌下去；記得正常呼吸"},
+  {id:"jack", n:"開合跳", a:"3 組 × 30 下", q:"開合跳 教學",
+   s:["站直，雙腳併攏，手放在身體兩側","跳起來，落地時雙腳打開比肩寬，同時雙手從旁邊舉過頭頂拍手","再跳一次，雙腳併攏、手放下回到原位","一開一合算 1 下"],
+   w:"怕吵到樓下：改成不跳，一次往旁邊踏一隻腳，手一樣舉高"},
+  {id:"walk", n:"快走", a:"20 分鐘", q:"健走 正確姿勢",
+   s:["穿好走路的鞋，到外面或社區走","步伐比平常大一點、快一點","手肘彎曲，雙手前後擺動","走到有點喘、但還能講話的程度，維持 20 分鐘"],
+   w:"下雨天可以在家原地踏步 20 分鐘代替"},
+  {id:"pushup", n:"伏地挺身（可跪姿）", a:"3 組 × 10 下", q:"跪姿伏地挺身 教學",
+   s:["雙手撐地，比肩膀稍寬","沒力的話膝蓋跪地（跪姿版）；有力的話腳尖撐地","身體保持一直線，手肘彎曲，胸口慢慢往地面靠近","快碰到地面時，雙手推回原位，算 1 下"],
+   w:"再簡單一點：雙手撐在牆壁或桌邊做，一樣有效"},
+  {id:"lunge", n:"弓箭步", a:"每隻腳 10 下 × 3 組", q:"弓箭步 教學",
+   s:["站直，雙手插腰","右腳往前跨一大步","身體往下蹲，兩個膝蓋都彎到大約 90 度，後腳膝蓋靠近地面","右腳用力推回站姿，換左腳，左右各算 1 下"],
+   w:"前腳膝蓋不要超過腳尖；站不穩可以扶著椅背"},
+  {id:"bridge", n:"臀橋", a:"3 組 × 15 下", q:"臀橋 教學",
+   s:["躺在地上，膝蓋彎起來，腳掌踩地，與肩同寬","雙手平放在身體兩側","屁股夾緊往上抬，讓肩膀、屁股、膝蓋連成斜斜一直線","在最高點停 1 秒，再慢慢放下，算 1 下"],
+   w:"用屁股出力，不是用腰；腰痠就抬低一點"},
+  {id:"stretch", n:"全身伸展", a:"10 分鐘", q:"10分鐘 全身伸展",
+   s:["脖子：頭慢慢往左、右、前各倒一邊，各停 20 秒","肩膀：右手伸直橫過胸前，左手壓住，停 20 秒，換手","大腿後側：坐地雙腿伸直，身體往前彎、手摸腳尖方向，停 30 秒","腰：躺著，雙膝一起倒向左邊停 20 秒，再倒右邊"],
+   w:"伸展到「有點緊」就好，不要痛；全程慢慢呼吸"},
+  {id:"raise", n:"水瓶側平舉", a:"3 組 × 10 下", q:"側平舉 水瓶 教學",
+   s:["站直，雙腳與肩同寬，左右手各拿一瓶水（裝滿的寶特瓶就可以）","雙手垂在身體兩側，手肘微彎，掌心朝向身體","雙手同時從兩側往上舉，舉到與肩膀同高，停 1 秒","慢慢放回身體兩側，算 1 下；做 10 下休息 30 秒，共 3 組"],
+   w:"不要聳肩，也不要超過肩膀高度；放下時要慢，不要讓手直接掉下來"},
+  {id:"calf", n:"提踵（踮腳尖）", a:"3 組 × 20 下", q:"提踵 小腿 教學",
+   s:["站直，雙手輕扶牆壁或椅背","腳跟慢慢抬起來，用腳尖站到最高","在最高點停 1 秒","腳跟慢慢放下，但不要完全放鬆，算 1 下"],
+   w:"可以邊刷牙、邊等水開的時候做"},
+  {id:"crunch", n:"捲腹", a:"3 組 × 15 下", q:"捲腹 教學",
+   s:["躺在地上，膝蓋彎起來，腳踩地","雙手交叉放在胸前（或輕輕放耳朵旁）","肚子用力，把頭和肩膀抬離地面，眼睛看膝蓋","抬到肩胛骨離地就好，停 1 秒，慢慢躺回去"],
+   w:"不要用手拉脖子；不需要整個坐起來"},
+  {id:"wallsit", n:"靠牆蹲", a:"3 組 × 30 秒", q:"靠牆蹲 教學",
+   s:["背貼著牆站好，雙腳往前走一步，與肩同寬","背沿著牆慢慢往下滑","滑到膝蓋彎曲約 90 度，就像坐在隱形椅子上","維持 30 秒，站起來休息，再做下一組"],
+   w:"太累就蹲高一點；膝蓋要在腳踝正上方"},
+  {id:"knee", n:"原地高抬腿", a:"3 組 × 30 秒", q:"原地高抬腿 教學",
+   s:["站直，雙手放腰側或手肘彎曲","右膝往上抬，抬到大約腰的高度","放下，換左膝抬高，像原地跑步一樣交替","手跟著前後擺動，連續做 30 秒"],
+   w:"怕吵就不要跳，用走的慢慢抬也可以"},
+  {id:"bird", n:"鳥狗式", a:"每邊 10 下 × 3 組", q:"鳥狗式 教學",
+   s:["雙手雙膝跪在地上，手在肩膀下、膝蓋在屁股下，背打平","右手往前伸直，同時左腳往後伸直","手、背、腳連成一條水平線，停 2 秒","收回來，換左手＋右腳，一邊算 1 下"],
+   w:"動作放慢，身體不要歪；可以在背上放一本書，不要讓它掉下來"},
+  {id:"superman", n:"超人式", a:"3 組 × 12 下", q:"超人式 背部 教學",
+   s:["趴在地上，雙手往前伸直，像超人在飛","同時把雙手、胸口、雙腳抬離地面","在最高點停 2 秒","慢慢放下，算 1 下"],
+   w:"脖子放鬆，眼睛看地板；抬一點點就有效果"},
+  {id:"rope", n:"空跳繩", a:"3 組 × 1 分鐘", q:"無繩跳繩 教學",
+   s:["站直，雙手放身體兩側，手肘靠近腰","假裝手上拿著跳繩，用手腕畫小圈","配合手的節奏，用腳尖小小地跳起來","連續跳 1 分鐘，休息 30 秒"],
+   w:"跳不動可以改成左右腳輪流小跳"},
+  {id:"catcow", n:"貓牛式", a:"10 次來回", q:"貓牛式 教學",
+   s:["雙手雙膝跪地，手在肩膀下、膝蓋在屁股下","吸氣：肚子往下沉、抬頭、屁股翹起來（牛）","吐氣：背往上拱起來、低頭看肚子（貓）","跟著呼吸慢慢做，一吸一吐算 1 次"],
+   w:"適合久坐、腰痠背痛的日子；動作越慢越舒服"},
+  {id:"dance", n:"跟著音樂跳舞", a:"10 分鐘", q:"10分鐘 有氧舞蹈",
+   s:["放一些喜歡、節奏快一點的音樂，計時 10 分鐘","跟著節奏隨意動：踏步、擺手、扭腰、轉圈都可以","不用在意好不好看，中間不要停下來，讓身體一直動","時間到就完成"],
+   w:"不知道怎麼跳，可以點下面的影片跟著做"},
+];
+const BY = Object.fromEntries(EX.map(e=>[e.id,e]));
+const START="2026-09-23", END="2026-12-31", TOTAL=100;
+const DEFAULT_PLAYERS=["君君","殿殿","玩家3","玩家4"];
+
+const pad=n=>String(n).padStart(2,"0");
+const key=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const W="日一二三四五六";
+const shift=(k,n)=>{const d=new Date(k+"T12:00:00");d.setDate(d.getDate()+n);return key(d);};
+let TODAY=key(new Date());
+const left=k=>Math.round((new Date(END+"T12:00:00")-new Date(k+"T12:00:00"))/864e5)+1;
+const cd=k=>(k<START)?"":(k>END)?"挑戰完成":`倒數 ${left(k)} 天`;
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const $=id=>document.getElementById(id);
+
+// ---------- state ----------
+let players=[], recs={}, me=null, busy=false, syncing=false, lastOK=null, err="";
+const rk=(d,p)=>d+"|"+p;
+try{ me=localStorage.getItem("exercise-me"); }catch(e){}
+function setMe(p){ me=p; try{ localStorage.setItem("exercise-me",p); }catch(e){} render(); }
+function colorOf(p){ const i=Math.max(0,players.indexOf(p))%8; return `--c:var(--p${i});--soft:var(--p${i}s)`; }
+
+function applyState(s){
+  if(!s) return;
+  if(Array.isArray(s.players)&&s.players.length) players=s.players;
+  if(Array.isArray(s.records)){ recs={}; s.records.forEach(r=>{ recs[rk(r.date,r.player)]={ex:r.ex,done:!!r.done}; }); }
+  if(s.error) err=s.error;
+}
+
+// ---------- backend: Google Apps Script, or demo on this device ----------
+const DEMO=!API_URL;
+const demoStore={
+  load(){ try{ return JSON.parse(localStorage.getItem("exercise-demo")||"null")||{players:DEFAULT_PLAYERS,records:[]}; }catch(e){ return {players:DEFAULT_PLAYERS,records:[]}; } },
+  save(s){ try{ localStorage.setItem("exercise-demo",JSON.stringify(s)); }catch(e){} }
+};
+async function apiGet(){
+  if(DEMO) return demoStore.load();
+  const r=await fetch(API_URL+(API_URL.includes("?")?"&":"?")+"t="+Date.now());
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  return r.json();
+}
+async function apiPost(body){
+  if(DEMO){
+    const s=demoStore.load(), i=s.records.findIndex(r=>r.date===body.date&&r.player===body.player);
+    if(body.action==="draw"&&i<0) s.records.push({date:body.date,player:body.player,ex:body.ex,done:false});
+    if(body.action==="done"&&i>=0) s.records[i].done=body.done;
+    demoStore.save(s); return s;
+  }
+  const r=await fetch(API_URL,{method:"POST",body:JSON.stringify(body)}); // text/plain：不會觸發 CORS 預檢
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  return r.json();
+}
+async function refresh(){
+  if(syncing||busy) return;
+  syncing=true;
+  try{ applyState(await apiGet()); lastOK=new Date(); err=""; }
+  catch(e){ err="連不上試算表，稍後自動再試"; }
+  syncing=false; render();
+}
+async function send(body){
+  try{ applyState(await apiPost(body)); lastOK=new Date(); err=""; }
+  catch(e){ err="剛剛沒存到，請再按一次"; }
+  render();
+}
+
+// ---------- actions ----------
+function draw(p){
+  if(busy||p!==me||recs[rk(TODAY,p)]) return;
+  busy=true;
+  const y=recs[rk(shift(TODAY,-1),p)];
+  const pool=EX.filter(e=>!y||e.id!==y.ex);
+  const pick=pool[Math.floor(Math.random()*pool.length)];
+  const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let i=0; const steps=reduce?1:18;
+  const tick=()=>{
+    if(i<steps){ spinCard(p,EX[Math.floor(Math.random()*EX.length)].n); i++; setTimeout(tick,50+i*i*1.2); return; }
+    recs[rk(TODAY,p)]={ex:pick.id,done:false};
+    busy=false; render(); popCard(p);
+    send({action:"draw",date:TODAY,player:p,ex:pick.id,exName:pick.n});
+  };
+  tick();
+}
+function toggleDone(p){
+  const r=recs[rk(TODAY,p)]; if(!r||p!==me) return;
+  r.done=!r.done; render();
+  send({action:"done",date:TODAY,player:p,done:r.done});
+}
+
+// ---------- render ----------
+function howto(e){
+  if(!e||!e.s||!e.s.length) return "";
+  return `<ol class="steps">${e.s.map(x=>`<li>${esc(x)}</li>`).join("")}</ol>`+
+    (e.w?`<p class="warn"><b>小提醒</b>${esc(e.w)}</p>`:"")+
+    `<a class="vid" href="https://www.youtube.com/results?search_query=${encodeURIComponent(e.q)}" target="_blank" rel="noopener">看示範影片 ↗</a>`;
+}
+function cardHTML(p){
+  const r=recs[rk(TODAY,p)], mine=p===me;
+  const e=r?(BY[r.ex]||{n:r.ex,a:"",s:[]}):null;
+  const st=!r?`<span class="state">還沒抽</span>`:r.done?`<span class="state ok">做完了</span>`:`<span class="state drawn">還沒做</span>`;
+  let slip, act="";
+  if(!r){
+    slip=`<div class="slip"><span class="empty hand">${mine?"籤筒等你來抽":"還沒抽籤"}</span></div>`;
+    if(mine) act=`<button class="primary" data-draw="${esc(p)}">抽一支</button>`;
+  }else{
+    const detail=mine?howto(e):(e.s&&e.s.length?`<details><summary>怎麼做</summary>${howto(e)}</details>`:"");
+    slip=`<div class="slip has"><div class="name hand">${esc(e.n)}</div><div class="amt">${esc(e.a)}</div>${detail}</div>`;
+    if(mine) act=`<button class="okbtn ${r.done?"on":""}" data-done="${esc(p)}">${r.done?"✓ 已完成（按一下取消）":"做完了，打卡"}</button>`;
+  }
+  if(!mine && !me) act=`<p class="hint">先在上面選「我是誰」</p>`;
+  return `<article class="card ${mine?"me":""}" style="${colorOf(p)}" data-p="${esc(p)}">
+    <div class="who"><div class="dot hand">${esc(p.slice(0,1))}</div><div><h2>${esc(p)}</h2>${mine?`<div class="you">這是你</div>`:""}</div>${st}</div>
+    ${slip}${act}</article>`;
+}
+function spinCard(p,name){
+  const s=document.querySelector(`.card[data-p="${CSS.escape(p)}"] .slip`);
+  if(s){ s.className="slip has spin"; s.innerHTML=`<div class="name hand">${esc(name)}</div>`; }
+}
+function popCard(p){ const s=document.querySelector(`.card[data-p="${CSS.escape(p)}"] .slip`); if(s) s.classList.add("pop"); }
+
+function stats(p){
+  let done=0;
+  for(const k in recs){ const [d,pp]=k.split("|"); if(pp===p&&recs[k].done&&d>=START&&d<=END&&d<=TODAY) done++; }
+  let streak=0, d=recs[rk(TODAY,p)]?.done?TODAY:shift(TODAY,-1);
+  while(d>=START && recs[rk(d,p)]?.done){ streak++; d=shift(d,-1); }
+  return {done,streak};
+}
+
+function render(){
+  const now=new Date();
+  $("today").innerHTML=`<span><b>${now.getMonth()+1} 月 ${now.getDate()} 日</b>・星期${W[now.getDay()]}</span>`+(cd(TODAY)?`<span class="cd">${cd(TODAY)}</span>`:"");
+  $("demo").hidden=!DEMO;
+
+  // who am I
+  const syncTxt=DEMO?"":err?err:lastOK?`已同步 ${pad(lastOK.getHours())}:${pad(lastOK.getMinutes())}`:"連線中…";
+  $("whoami").innerHTML=`<span class="lbl">我是</span>`+players.map(p=>`<button class="pick ${p===me?"on":""}" style="${colorOf(p)}" data-me="${esc(p)}">${esc(p)}</button>`).join("")+`<span class="sync">${esc(syncTxt)}</span>`;
+
+  // cards: me first
+  if(!busy){
+    const order=me&&players.includes(me)?[me,...players.filter(p=>p!==me)]:players;
+    $("cards").innerHTML=order.map(cardHTML).join("");
+  }
+
+  // leaderboard
+  const rows=players.map(p=>({p,...stats(p),today:recs[rk(TODAY,p)]})).sort((a,b)=>b.done-a.done||b.streak-a.streak);
+  $("board").innerHTML=rows.map((r,i)=>`<div class="row" style="${colorOf(r.p)}">
+    <span class="rank">${i+1}</span><span class="nm">${esc(r.p)}</span>
+    <span class="bar"><i style="width:${Math.min(100,r.done/TOTAL*100)}%"></i></span>
+    <span class="num"><b>${r.done}</b> / ${TOTAL} 天<small>${r.streak?`連續 ${r.streak} 天`:"—"}</small></span></div>`).join("");
+
+  // last 7 days
+  $("hhead").innerHTML=`<tr><th>日期</th>${players.map(p=>`<th style="${colorOf(p)};color:var(--c)">${esc(p)}</th>`).join("")}</tr>`;
+  const hr=[];
+  for(let i=0;i<7;i++){
+    const k=shift(TODAY,-i), d=new Date(k+"T12:00:00");
+    const cell=p=>{const r=recs[rk(k,p)]; if(!r) return `<span class="chip no">—</span>`;
+      return `<span class="chip ${r.done?"ok":""}"><i></i>${esc((BY[r.ex]||{n:r.ex}).n)}${r.done?"":"（沒做）"}</span>`;};
+    hr.push(`<tr><td class="d">${i===0?"今天":`${d.getMonth()+1}/${d.getDate()} (${W[d.getDay()]})`}${cd(k)?`<small>${cd(k)}</small>`:""}</td>${players.map(p=>`<td>${cell(p)}</td>`).join("")}</tr>`);
+  }
+  $("hist").innerHTML=hr.join("");
+}
+
+document.addEventListener("click",e=>{
+  const t=e.target.closest("[data-me],[data-draw],[data-done]"); if(!t) return;
+  if(t.dataset.me!==undefined) setMe(t.dataset.me);
+  else if(t.dataset.draw!==undefined) draw(t.dataset.draw);
+  else if(t.dataset.done!==undefined) toggleDone(t.dataset.done);
+});
+
+$("count").textContent=EX.length;
+$("menu").innerHTML=EX.map(e=>`<details><summary><b>${esc(e.n)}</b><span>${esc(e.a)}</span></summary>${howto(e)}</details>`).join("");
+
+players=DEFAULT_PLAYERS.slice();
+render();
+refresh();
+// 每 30 秒更新一次別人的狀態；回到頁面時也更新
+setInterval(()=>{ if(!document.hidden){ TODAY=key(new Date()); refresh(); } },30000);
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden){ TODAY=key(new Date()); refresh(); } });
+</script>
+</body>
+</html>
