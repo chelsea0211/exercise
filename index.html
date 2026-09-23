@@ -55,6 +55,15 @@ h1{font-size:clamp(30px,6vw,42px);margin:0;line-height:1.1;font-weight:700;lette
 .pick{border:1.5px solid var(--line);background:transparent;color:var(--ink);font-weight:500;font-size:15px;padding:6px 14px;border-radius:99px}
 .pick.on{background:var(--c);border-color:var(--c);color:var(--paper);font-weight:700}
 .sync{margin-left:auto;font-size:12px;color:var(--muted)}
+.pinbox{display:flex;flex-wrap:wrap;align-items:center;gap:8px;width:100%;padding-top:10px;margin-top:4px;border-top:1px solid var(--line)}
+.pinbox label{font-weight:700}
+.pinbox input{font:inherit;font-size:20px;letter-spacing:.3em;width:7.5em;padding:6px 10px;border:1.5px solid var(--line);border-radius:10px;background:var(--ground);color:var(--ink);text-align:center;font-variant-numeric:tabular-nums}
+.pinbox input:focus{outline:none;border-color:var(--c)}
+.pinbox .go{background:var(--c);color:var(--paper);padding:8px 16px;font-size:15px}
+.pinbox .cancel{background:transparent;color:var(--muted);padding:8px 10px;font-size:14px;font-weight:500}
+.pinbox .msg{width:100%;font-size:13px;color:var(--muted);margin:0}
+.pinbox .msg.bad{color:#C2412B}
+.logout{background:transparent;color:var(--muted);font-size:13px;font-weight:500;padding:4px 6px;text-decoration:underline}
 
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;align-items:start}
 .card{background:var(--paper);border-radius:18px;box-shadow:var(--shadow);padding:18px;display:flex;flex-direction:column;gap:14px}
@@ -164,7 +173,7 @@ td.d small{display:block;font-size:11px}
     <h3>籤筒裡有什麼 <small>共 <span id="count"></span> 支・點開看怎麼做</small></h3>
     <div class="menu" id="menu"></div>
   </section>
-  <p class="note">每人每天只能抽一次，抽到就固定。同一個人不會連續兩天抽到同一項。只能幫自己抽籤和打卡。</p>
+  <p class="note">每人每天只能抽一次，抽到就固定。同一個人不會連續兩天抽到同一項。抽籤和打卡要先用自己的密碼登入，別人沒辦法幫你抽。</p>
 </div>
 
 <script>
@@ -239,10 +248,32 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"
 const $=id=>document.getElementById(id);
 
 // ---------- state ----------
-let players=[], recs={}, me=null, busy=false, syncing=false, lastOK=null, err="";
+let players=[], recs={}, me=null, pin="", busy=false, syncing=false, lastOK=null, err="";
+let asking=null, askMsg="", askBad=false, checking=false; // 正在輸入誰的密碼
 const rk=(d,p)=>d+"|"+p;
-try{ me=localStorage.getItem("exercise-me"); }catch(e){}
-function setMe(p){ me=p; try{ localStorage.setItem("exercise-me",p); }catch(e){} render(); }
+try{ const a=JSON.parse(localStorage.getItem("exercise-auth")||"null"); if(a&&a.player&&a.pin){ me=a.player; pin=a.pin; } }catch(e){}
+function saveAuth(){ try{ if(me) localStorage.setItem("exercise-auth",JSON.stringify({player:me,pin})); else localStorage.removeItem("exercise-auth"); }catch(e){} }
+function logout(msg){ me=null; pin=""; saveAuth(); if(msg){ err=msg; } render(); }
+function askPin(p){
+  if(p===me) return;
+  if(DEMO){ me=p; pin="demo"; saveAuth(); render(); return; }
+  asking=p; askMsg=""; askBad=false; render();
+  setTimeout(()=>{ const i=$("pin"); if(i) i.focus(); },30);
+}
+async function submitPin(){
+  const i=$("pin"); if(!i||checking) return;
+  const v=i.value.trim();
+  if(!/^\d{4}$/.test(v)){ askMsg="請輸入 4 位數字"; askBad=true; render(); return; }
+  checking=true; askMsg="確認中…"; askBad=false; render();
+  try{
+    const j=await apiPost({action:"login",player:asking,pin:v});
+    applyState({players:j.players,records:j.records});
+    if(j.ok){ me=asking; pin=v; saveAuth(); asking=null; err=""; }
+    else { askMsg=j.error||"密碼不對"; askBad=true; }
+  }catch(e){ askMsg="連不上試算表，請再試一次"; askBad=true; }
+  checking=false; render();
+  if(asking) setTimeout(()=>{ const x=$("pin"); if(x){ x.value=""; x.focus(); } },30);
+}
 function colorOf(p){ const i=Math.max(0,players.indexOf(p))%8; return `--c:var(--p${i});--soft:var(--p${i}s)`; }
 
 function applyState(s){
@@ -250,6 +281,7 @@ function applyState(s){
   if(Array.isArray(s.players)&&s.players.length) players=s.players;
   if(Array.isArray(s.records)){ recs={}; s.records.forEach(r=>{ recs[rk(r.date,r.player)]={ex:r.ex,done:!!r.done}; }); }
   if(s.error) err=s.error;
+  if(s.authFail && me){ logout("密碼不對，請重新選自己的名字並輸入密碼"); }
 }
 
 // ---------- backend: Google Apps Script, or demo on this device ----------
@@ -283,8 +315,9 @@ async function refresh(){
   syncing=false; render();
 }
 async function send(body){
+  body.pin=pin;
   try{ applyState(await apiPost(body)); lastOK=new Date(); err=""; }
-  catch(e){ err="剛剛沒存到，請再按一次"; }
+  catch(e){ err="剛剛沒存到，請重新整理再試一次"; refresh(); }
   render();
 }
 
@@ -331,7 +364,7 @@ function cardHTML(p){
     slip=`<div class="slip has"><div class="name hand">${esc(e.n)}</div><div class="amt">${esc(e.a)}</div>${detail}</div>`;
     if(mine) act=`<button class="okbtn ${r.done?"on":""}" data-done="${esc(p)}">${r.done?"✓ 已完成（按一下取消）":"做完了，打卡"}</button>`;
   }
-  if(!mine && !me) act=`<p class="hint">先在上面選「我是誰」</p>`;
+  if(!mine && !me) act=`<p class="hint">先在上面選自己的名字，輸入密碼</p>`;
   return `<article class="card ${mine?"me":""}" style="${colorOf(p)}" data-p="${esc(p)}">
     <div class="who"><div class="dot hand">${esc(p.slice(0,1))}</div><div><h2>${esc(p)}</h2>${mine?`<div class="you">這是你</div>`:""}</div>${st}</div>
     ${slip}${act}</article>`;
@@ -357,7 +390,17 @@ function render(){
 
   // who am I
   const syncTxt=DEMO?"":err?err:lastOK?`已同步 ${pad(lastOK.getHours())}:${pad(lastOK.getMinutes())}`:"連線中…";
-  $("whoami").innerHTML=`<span class="lbl">我是</span>`+players.map(p=>`<button class="pick ${p===me?"on":""}" style="${colorOf(p)}" data-me="${esc(p)}">${esc(p)}</button>`).join("")+`<span class="sync">${esc(syncTxt)}</span>`;
+  const keepPin=$("pin")?$("pin").value:"";
+  $("whoami").innerHTML=`<span class="lbl">我是</span>`+players.map(p=>`<button class="pick ${p===me||p===asking?"on":""}" style="${colorOf(p)}" data-me="${esc(p)}">${esc(p)}</button>`).join("")+
+    (me&&!asking?`<button class="logout" data-logout="1">登出</button>`:"")+`<span class="sync">${esc(syncTxt)}</span>`+
+    (asking?`<form class="pinbox" id="pinform" style="${colorOf(asking)}">
+      <label for="pin">${esc(asking)} 的密碼</label>
+      <input id="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="••••">
+      <button type="submit" class="go" ${checking?"disabled":""}>確認</button>
+      <button type="button" class="cancel" data-cancel="1">取消</button>
+      <p class="msg ${askBad?"bad":""}">${esc(askMsg||"密碼是 4 位數字，問試算表的主人拿。輸入一次後，這支手機會記住。")}</p>
+    </form>`:"");
+  if(asking&&keepPin&&$("pin")) $("pin").value=keepPin;
 
   // cards: me first
   if(!busy){
@@ -385,11 +428,15 @@ function render(){
 }
 
 document.addEventListener("click",e=>{
-  const t=e.target.closest("[data-me],[data-draw],[data-done]"); if(!t) return;
-  if(t.dataset.me!==undefined) setMe(t.dataset.me);
+  const t=e.target.closest("[data-me],[data-draw],[data-done],[data-logout],[data-cancel]"); if(!t) return;
+  if(t.dataset.logout!==undefined) logout();
+  else if(t.dataset.cancel!==undefined){ asking=null; render(); }
+  else if(t.dataset.me!==undefined) askPin(t.dataset.me);
   else if(t.dataset.draw!==undefined) draw(t.dataset.draw);
   else if(t.dataset.done!==undefined) toggleDone(t.dataset.done);
 });
+
+document.addEventListener("submit",e=>{ if(e.target.id==="pinform"){ e.preventDefault(); submitPin(); } });
 
 $("count").textContent=EX.length;
 $("menu").innerHTML=EX.map(e=>`<details><summary><b>${esc(e.n)}</b><span>${esc(e.a)}</span></summary>${howto(e)}</details>`).join("");
