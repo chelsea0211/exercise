@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>今日運動籤</title>
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
 <script>
@@ -277,6 +279,10 @@ async function submitPin(){
 }
 function colorOf(p){ const i=Math.max(0,players.indexOf(p))%8; return `--c:var(--p${i});--soft:var(--p${i}s)`; }
 
+const CACHE_KEY="exercise-cache";
+let fromCache=false;
+function saveCache(){ if(DEMO) return; try{ const r=[]; for(const k in recs){ const [date,player]=k.split("|"); r.push({date,player,ex:recs[k].ex,done:recs[k].done}); } localStorage.setItem(CACHE_KEY,JSON.stringify({players,records:r})); }catch(e){} }
+function loadCache(){ try{ const c=JSON.parse(localStorage.getItem(CACHE_KEY)||"null"); if(c&&Array.isArray(c.players)&&c.players.length){ applyState({players:c.players,records:c.records}); fromCache=true; return true; } }catch(e){} return false; }
 function applyState(s){
   if(!s) return;
   if(Array.isArray(s.players)&&s.players.length) players=s.players;
@@ -311,13 +317,13 @@ async function apiPost(body){
 async function refresh(){
   if(syncing||busy) return;
   syncing=true;
-  try{ applyState(await apiGet()); lastOK=new Date(); err=""; }
+  try{ applyState(await apiGet()); lastOK=new Date(); err=""; fromCache=false; saveCache(); }
   catch(e){ err="連不上試算表，稍後自動再試"; }
   syncing=false; render();
 }
 async function send(body){
   body.pin=pin;
-  try{ applyState(await apiPost(body)); lastOK=new Date(); err=""; }
+  try{ applyState(await apiPost(body)); lastOK=new Date(); err=""; fromCache=false; saveCache(); }
   catch(e){ err="剛剛沒存到，請重新整理再試一次"; refresh(); }
   render();
 }
@@ -390,7 +396,7 @@ function render(){
   $("demo").hidden=!DEMO;
 
   // who am I
-  const syncTxt=DEMO?"":err?err:lastOK?`已同步 ${pad(lastOK.getHours())}:${pad(lastOK.getMinutes())}`:"連線中…";
+  const syncTxt=DEMO?"":err?err:lastOK?`已同步 ${pad(lastOK.getHours())}:${pad(lastOK.getMinutes())}`:fromCache?"更新中…":"連線中…";
   const keepPin=$("pin")?$("pin").value:"";
   $("whoami").innerHTML=`<span class="lbl">我是</span>`+players.map(p=>`<button class="pick ${asking?(p===asking?"pending":""):(p===me?"on":"")}" style="${colorOf(p)}" data-me="${esc(p)}">${esc(p)}</button>`).join("")+
     (me&&!asking?`<button class="logout" data-logout="1">登出</button>`:"")+`<span class="sync">${esc(syncTxt)}</span>`+
@@ -406,7 +412,7 @@ function render(){
   // cards: me first
   if(!busy){
     const order=me&&players.includes(me)?[me,...players.filter(p=>p!==me)]:players;
-    $("cards").innerHTML=order.map(cardHTML).join("");
+    $("cards").innerHTML=players.length?order.map(cardHTML).join(""):`<p class="hint">${err?esc(err):"載入中…"}</p>`;
   }
 
   // leaderboard
@@ -442,7 +448,7 @@ document.addEventListener("submit",e=>{ if(e.target.id==="pinform"){ e.preventDe
 $("count").textContent=EX.length;
 $("menu").innerHTML=EX.map(e=>`<details><summary><b>${esc(e.n)}</b><span>${esc(e.a)}</span></summary>${howto(e)}</details>`).join("");
 
-players=DEFAULT_PLAYERS.slice();
+if(DEMO) players=DEFAULT_PLAYERS.slice(); else loadCache();
 render();
 refresh();
 // 每 30 秒更新一次別人的狀態；回到頁面時也更新
