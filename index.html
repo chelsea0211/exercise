@@ -54,6 +54,7 @@ h1{font-size:clamp(30px,6vw,42px);margin:0;line-height:1.1;font-weight:700;lette
 .whoami .lbl{font-weight:700;margin-right:4px}
 .pick{border:1.5px solid var(--line);background:transparent;color:var(--ink);font-weight:500;font-size:15px;padding:6px 14px;border-radius:99px}
 .pick.on{background:var(--c);border-color:var(--c);color:var(--paper);font-weight:700}
+.pick.pending{border:2px dashed var(--c);color:var(--c);font-weight:700}
 .sync{margin-left:auto;font-size:12px;color:var(--muted)}
 .pinbox{display:flex;flex-wrap:wrap;align-items:center;gap:8px;width:100%;padding-top:10px;margin-top:4px;border-top:1px solid var(--line)}
 .pinbox label{font-weight:700}
@@ -391,14 +392,14 @@ function render(){
   // who am I
   const syncTxt=DEMO?"":err?err:lastOK?`已同步 ${pad(lastOK.getHours())}:${pad(lastOK.getMinutes())}`:"連線中…";
   const keepPin=$("pin")?$("pin").value:"";
-  $("whoami").innerHTML=`<span class="lbl">我是</span>`+players.map(p=>`<button class="pick ${p===me||p===asking?"on":""}" style="${colorOf(p)}" data-me="${esc(p)}">${esc(p)}</button>`).join("")+
+  $("whoami").innerHTML=`<span class="lbl">我是</span>`+players.map(p=>`<button class="pick ${asking?(p===asking?"pending":""):(p===me?"on":"")}" style="${colorOf(p)}" data-me="${esc(p)}">${esc(p)}</button>`).join("")+
     (me&&!asking?`<button class="logout" data-logout="1">登出</button>`:"")+`<span class="sync">${esc(syncTxt)}</span>`+
     (asking?`<form class="pinbox" id="pinform" style="${colorOf(asking)}">
       <label for="pin">${esc(asking)} 的密碼</label>
       <input id="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="••••">
       <button type="submit" class="go" ${checking?"disabled":""}>確認</button>
       <button type="button" class="cancel" data-cancel="1">取消</button>
-      <p class="msg ${askBad?"bad":""}">${esc(askMsg||"密碼是 4 位數字，問試算表的主人拿。輸入一次後，這支手機會記住。")}</p>
+      <p class="msg ${askBad?"bad":""}">${esc(askMsg||(me?`輸入 ${asking} 的密碼後，才會從 ${me} 切換過去；按「取消」會留在 ${me}。`:"密碼是 4 位數字，問試算表的主人拿。輸入一次後，這支手機會記住。"))}</p>
     </form>`:"");
   if(asking&&keepPin&&$("pin")) $("pin").value=keepPin;
 
