@@ -129,6 +129,7 @@ td.d small{display:block;font-size:11px}
 .chip i{width:8px;height:8px;border-radius:50%;background:var(--line)}
 .chip.ok i{background:var(--done)}
 .chip.no{color:var(--muted)}
+.backfill{margin-left:8px;padding:3px 10px;font-size:12px;font-weight:700;border-radius:99px;background:var(--done-soft);color:var(--done);border:1px solid var(--done)}
 
 .menu{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;align-items:start;--c:var(--p0)}
 .menu details{padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--paper)}
@@ -351,6 +352,13 @@ function draw(p){
   };
   tick();
 }
+// 只能補「昨天」的打卡，而且要昨天有抽過籤
+function backfill(p){
+  const y=shift(TODAY,-1), r=recs[rk(y,p)];
+  if(!r||r.done||p!==me) return;
+  r.done=true; render();
+  send({action:"done",date:y,player:p,done:true});
+}
 function toggleDone(p){
   const r=recs[rk(TODAY,p)]; if(!r||p!==me) return;
   r.done=!r.done; render();
@@ -434,14 +442,15 @@ function render(){
   for(let i=0;i<7;i++){
     const k=shift(TODAY,-i), d=new Date(k+"T12:00:00"); if(k<START) break;
     const cell=p=>{const r=recs[rk(k,p)]; if(!r) return `<span class="chip no">—</span>`;
-      return `<span class="chip ${r.done?"ok":""}"><i></i>${esc((BY[r.ex]||{n:r.ex}).n)}${r.done?"":"（沒做）"}</span>`;};
+      return `<span class="chip ${r.done?"ok":""}"><i></i>${esc((BY[r.ex]||{n:r.ex}).n)}${r.done?"":"（沒做）"}</span>`+(i===1&&p===me&&!r.done?`<button class="backfill" data-backfill="${esc(p)}">補打卡</button>`:"");};
     hr.push(`<tr><td class="d">${i===0?"今天":`${d.getMonth()+1}/${d.getDate()} (${W[d.getDay()]})`}${cd(k)?`<small>${cd(k)}</small>`:""}</td>${players.map(p=>`<td>${cell(p)}</td>`).join("")}</tr>`);
   }
   $("hist").innerHTML=hr.join("");
 }
 
 document.addEventListener("click",e=>{
-  const t=e.target.closest("[data-me],[data-draw],[data-done],[data-logout],[data-cancel]"); if(!t) return;
+  const t=e.target.closest("[data-me],[data-draw],[data-done],[data-logout],[data-cancel],[data-backfill]"); if(!t) return;
+  if(t.dataset.backfill!==undefined){ backfill(t.dataset.backfill); return; }
   if(t.dataset.logout!==undefined) logout();
   else if(t.dataset.cancel!==undefined){ asking=null; render(); }
   else if(t.dataset.me!==undefined) askPin(t.dataset.me);
