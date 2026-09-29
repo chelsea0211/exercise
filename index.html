@@ -321,24 +321,37 @@ async function apiPost(body){
   if(!r.ok) throw new Error("HTTP "+r.status);
   return r.json();
 }
+// 防止「舊的讀取結果」蓋掉剛抽的籤：每次抽籤/打卡都會讓 mut +1，
+// 讀取回來時如果這段期間有新的動作，就丟掉這份舊資料，稍後再讀一次。
+let mut=0, pending=0;
 async function refresh(){
   if(syncing||busy) return;
-  syncing=true;
-  try{ applyState(await apiGet()); lastOK=new Date(); err=""; fromCache=false; saveCache(); }
+  syncing=true; const m0=mut;
+  try{
+    const s=await apiGet();
+    if(mut===m0 && pending===0 && !busy){ applyState(s); lastOK=new Date(); err=""; fromCache=false; saveCache(); }
+    else setTimeout(refresh, 1500);
+  }
   catch(e){ err="連不上試算表，稍後自動再試"; }
   syncing=false; render();
 }
 async function send(body){
-  body.pin=pin;
-  try{ applyState(await apiPost(body)); lastOK=new Date(); err=""; fromCache=false; saveCache(); }
-  catch(e){ err="剛剛沒存到，請重新整理再試一次"; refresh(); }
+  body.pin=pin; const my=++mut; pending++;
+  try{
+    const s=await apiPost(body);
+    if(my===mut){ applyState(s); lastOK=new Date(); err=""; fromCache=false; saveCache(); }
+  }
+  catch(e){ err="剛剛沒存到，請重新整理再試一次"; }
+  pending--;
+  if(pending===0 && my!==mut) refresh();
   render();
 }
 
 // ---------- actions ----------
 function draw(p){
-  if(busy||p!==me||recs[rk(TODAY,p)]) return;
-  busy=true;
+  TODAY=key(new Date());   // 過了午夜也用正確的日期
+  if(busy||p!==me||recs[rk(TODAY,p)]){ render(); return; }
+  busy=true; mut++;
   const y=recs[rk(shift(TODAY,-1),p)];
   const pool=EX.filter(e=>!y||e.id!==y.ex);
   const pick=pool[Math.floor(Math.random()*pool.length)];
@@ -354,12 +367,14 @@ function draw(p){
 }
 // 只能補「昨天」的打卡，而且要昨天有抽過籤
 function backfill(p){
+  const t=key(new Date()); if(t!==TODAY){ TODAY=t; render(); return; }
   const y=shift(TODAY,-1), r=recs[rk(y,p)];
   if(!r||r.done||p!==me) return;
   r.done=true; render();
   send({action:"done",date:y,player:p,done:true});
 }
 function toggleDone(p){
+  const t=key(new Date()); if(t!==TODAY){ TODAY=t; render(); return; }   // 跨日了就先更新畫面
   const r=recs[rk(TODAY,p)]; if(!r||p!==me) return;
   r.done=!r.done; render();
   send({action:"done",date:TODAY,player:p,done:r.done});
